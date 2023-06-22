@@ -1,6 +1,6 @@
 [package]
 name = "furiosa-metadata"
-version = "0.2.0-dev"
+version = "0.1.0"
 authors = ["FuriosaAI Inc."]
 edition = "2021"
 
