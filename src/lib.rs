@@ -2,6 +2,7 @@
 
 use std::env::{self, VarError};
 use std::fmt::Display;
+use std::path::Path;
 use std::process::Command;
 use std::str;
 
@@ -104,6 +105,40 @@ fn git_short_hash() -> Result<String, Box<dyn std::error::Error>> {
     Ok(git_short_hash)
 }
 
+fn extract_stdout<'a>(
+    cmd_line: &'_ str,
+    output: &'a std::process::Output,
+) -> Result<&'a str, String> {
+    if !output.status.success() {
+        return Err(format!(
+            "`{cmd_line}` failed: {status}\n\n{stderr}",
+            status = output.status,
+            stderr = output.stderr.escape_ascii(),
+        ));
+    }
+
+    let stdout = str::from_utf8(&output.stdout).map_err(|e| {
+        format!(
+            "Unexpected output from `{cmd_line}`: {e}\n\n{stdout}",
+            stdout = output.stdout.escape_ascii(),
+        )
+    })?;
+
+    Ok(stdout)
+}
+
+fn get_workspace_dir() -> Result<String, Box<dyn std::error::Error>> {
+    let command = env!("CARGO");
+    let args = ["locate-project", "--workspace", "--message-format=plain"];
+    let output = Command::new(command).args(args).output()?;
+
+    let cmd_line: String = format!("{command} {}", args.join(" "));
+    let stdout = extract_stdout(&cmd_line, &output)?;
+
+    let cargo_path = Path::new(stdout.trim());
+    Ok(cargo_path.parent().unwrap().display().to_string())
+}
+
 /// Run git with given arguments, as if it was run from the workspace directory,
 /// and try to parse the resulting stdout with given function.
 /// Returns a formatted error with stdout or stderr on any error.
@@ -111,35 +146,23 @@ fn run_git<T, E: Display>(
     args: &[&str],
     parse: impl Fn(&str) -> Result<T, E>,
 ) -> Result<T, Box<dyn std::error::Error>> {
-    const WORKSPACE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");
+    let workspace_dir: String = get_workspace_dir()?;
 
-    let command = || format!("git -C {WORKSPACE_DIR} {args}", args = args.join(" "));
-    let output = Command::new("git").args(["-C", WORKSPACE_DIR]).args(args).output()?;
+    let cmd_line = format!("git -C {workspace_dir} {args}", args = args.join(" "));
+    let output = Command::new("git").args(["-C", &workspace_dir]).args(args).output()?;
+    let stdout = extract_stdout(&cmd_line, &output)?;
 
-    if !output.status.success() {
-        return Err(format!(
-            "`{command}` failed: {status}\n\n{stderr}",
-            command = command(),
-            status = output.status,
-            stderr = output.stderr.escape_ascii(),
-        )
-        .into());
-    }
-
-    let stdout = str::from_utf8(&output.stdout).map_err(|e| {
-        format!(
-            "Unexpected output from `{command}`: {e}\n\n{stdout}",
-            command = command(),
-            stdout = output.stdout.escape_ascii(),
-        )
-    })?;
-
-    Ok(parse(stdout).map_err(|e| {
-        format!("Unexpected output from `{command}`: {e}\n\n{stdout}", command = command())
-    })?)
+    Ok(parse(stdout)
+        .map_err(|e| format!("Unexpected output from `{cmd_line}`: {e}\n\n{stdout}"))?)
 }
 
 /// Returns the date and time of the current build.
 fn build_timestamp() -> String {
     Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
+}
+
+#[test]
+fn tests() -> Result<(), Box<dyn std::error::Error>> {
+    assert!(!git_short_hash()?.is_empty());
+    Ok(())
 }
