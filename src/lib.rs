@@ -106,7 +106,7 @@ fn git_short_hash() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 fn extract_stdout<'a>(
-    cmd_line: &'a str,
+    cmd_line: &'_ str,
     output: &'a std::process::Output,
 ) -> Result<&'a str, String> {
     if !output.status.success() {
