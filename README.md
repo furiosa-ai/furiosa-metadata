@@ -1,4 +1,5 @@
 # furiosa-metadata
+This crate provides an utility to embed crate version, short git revision, and build time as constants in Rust projects.
 
 ```
 [dependencies]
