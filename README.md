@@ -3,5 +3,5 @@ This crate provides an utility to embed crate version, short git revision, and b
 
 ```
 [dependencies]
-furiosa-metadata = { git = https://github.com/furiosa-ai/furiosa-metadata, tag = "v0.1.0" }
+furiosa-metadata = { git = https://github.com/furiosa-ai/furiosa-metadata, tag = "v0.2.0" }
 ```
