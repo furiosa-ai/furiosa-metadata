@@ -7,6 +7,7 @@ use std::process::Command;
 use std::str;
 
 use chrono::offset::Utc;
+use glob::Pattern;
 
 /// Generates the build metadata constants.
 ///
@@ -32,9 +33,17 @@ macro_rules! metadata_constants {
 ///
 /// * `FURIOSA_GIT_SHORT_HASH`
 /// * `FURIOSA_BUILD_TIMESTAMP`
+///
+/// Following environment variables may be used for configuration:
+///
+/// * `FURIOSA_METADATA_EXPECT_MODIFIED` is a colon-separated list of glob patterns
+///   that are ignored for the dirty repository detection (puts `-modified` to the hash).
+///   Patterns match the full path, so `*.bak` doesn't match `foo/bar.bak` (`**/*.bak` does).
+///   See the `glob` crate documentation for the full pattern syntax.
 pub fn set_metadata_env_vars() -> Result<(), Box<dyn std::error::Error>> {
     if let Err(VarError::NotPresent) = env::var("FURIOSA_GIT_SHORT_HASH") {
-        println!("cargo:rustc-env=FURIOSA_GIT_SHORT_HASH={}", git_short_hash()?);
+        let expected_patterns = get_expected_patterns()?;
+        println!("cargo:rustc-env=FURIOSA_GIT_SHORT_HASH={}", git_short_hash(&expected_patterns)?);
     }
 
     println!("cargo:rustc-env=FURIOSA_BUILD_TIMESTAMP={}", build_timestamp());
@@ -42,10 +51,34 @@ pub fn set_metadata_env_vars() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn get_expected_patterns() -> Result<Vec<Pattern>, Box<dyn std::error::Error>> {
+    const PATTERN_VAR: &str = "FURIOSA_METADATA_EXPECT_MODIFIED";
+
+    println!("cargo:rerun-if-env-changed={PATTERN_VAR}");
+    match env::var(PATTERN_VAR) {
+        Ok(patterns) if patterns.is_empty() => Ok(vec![]),
+        Ok(patterns) => patterns
+            .split(':')
+            .map(|pattern| {
+                if pattern.is_empty() {
+                    Err(format!("{PATTERN_VAR} contains an empty pattern").into())
+                } else {
+                    Pattern::new(pattern).map_err(|e| {
+                        format!("{PATTERN_VAR} contains an invalid pattern {pattern:?}: {e}").into()
+                    })
+                }
+            })
+            .collect(),
+        Err(VarError::NotPresent) => Ok(vec![]),
+        Err(e) => return Err(e.into()),
+    }
+}
+
 /// Returns the Git short hash for the current branch of the npu-tools repository.
 ///
 /// The hash will have a `-modified` suffix if the repository is dirty.
-fn git_short_hash() -> Result<String, Box<dyn std::error::Error>> {
+/// A repository is considered clean if all updated paths (if any) match any `expected_patterns`.
+fn git_short_hash(expected_patterns: &[Pattern]) -> Result<String, Box<dyn std::error::Error>> {
     let mut git_short_hash = run_git(
         &[
             "rev-parse",
@@ -67,13 +100,16 @@ fn git_short_hash() -> Result<String, Box<dyn std::error::Error>> {
             "status",
             "--untracked=no",          // ignore untracked files (`??`)
             "--ignore-submodules=all", // ignore all submodule changes
+            "--no-renames",            // do not detect renames
             "--porcelain",             // use the machine-readable format
-                                       // (we don't use file names, so don't need `-z`)
+            "-z",                      // all paths are zero-terminated
         ],
         |s| {
             // https://git-scm.com/docs/git-status#_porcelain_format_version_1
+            // We can safely assume that the whole output consists of `XY <name>\0`
+            // because `--no-renames` prohibits `XY <new name>\0<old name>\0`.
             let mut dirty = false;
-            for line in s.lines() {
+            for line in s.split_terminator('\0') {
                 if line.starts_with("?? ") {
                     return Err("untracked file should have been omitted");
                 }
@@ -92,7 +128,15 @@ fn git_short_hash() -> Result<String, Box<dyn std::error::Error>> {
                 ) {
                     return Err("bad status");
                 }
-                dirty = true;
+
+                let path = &line[3..];
+                if expected_patterns.iter().any(|pattern| pattern.matches(path)) {
+                    eprintln!(
+                        "[furiosa-metadata] Ignored an updated file {path:?} as it was expected."
+                    );
+                } else {
+                    dirty = true;
+                }
             }
             Ok(dirty)
         },
@@ -163,6 +207,6 @@ fn build_timestamp() -> String {
 
 #[test]
 fn tests() -> Result<(), Box<dyn std::error::Error>> {
-    assert!(!git_short_hash()?.is_empty());
+    assert!(!git_short_hash(&[])?.is_empty());
     Ok(())
 }
