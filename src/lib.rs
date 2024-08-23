@@ -60,6 +60,7 @@ fn get_expected_patterns() -> Result<Vec<Pattern>, Box<dyn std::error::Error>> {
         Ok(patterns) => patterns
             .split(':')
             .map(|pattern| {
+                eprintln!("FURIOSA_METADATA_EXPECT_MODIFIED={pattern}");
                 if pattern.is_empty() {
                     Err(format!("{PATTERN_VAR} contains an empty pattern").into())
                 } else {
@@ -135,6 +136,9 @@ fn git_short_hash(expected_patterns: &[Pattern]) -> Result<String, Box<dyn std::
                         "[furiosa-metadata] Ignored an updated file {path:?} as it was expected."
                     );
                 } else {
+                    eprintln!(
+                        "[furiosa-metadata] {path:?} is dirty."
+                    );
                     dirty = true;
                 }
             }
