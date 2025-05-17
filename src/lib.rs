@@ -20,8 +20,24 @@ use glob::Pattern;
 #[macro_export]
 macro_rules! metadata_constants {
     () => {
+        /// The version of the package, as defined in `Cargo.toml`.
+        ///
+        /// This is automatically set by Cargo using the `CARGO_PKG_VERSION`
+        /// environment variable.
         pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+        /// The short hash of the current Git commit at build time.
+        ///
+        /// This is set via the `FURIOSA_GIT_SHORT_HASH` environment variable,
+        /// which is typically defined in a build script (`build.rs`) by calling
+        /// `furiosa_metadata::set_metadata_env_vars()`.
         pub const GIT_SHORT_HASH: &str = env!("FURIOSA_GIT_SHORT_HASH");
+
+        /// The timestamp when the build was created.
+        ///
+        /// This is set via the `FURIOSA_BUILD_TIMESTAMP` environment variable,
+        /// which is typically defined in a build script (`build.rs`) by calling
+        /// `furiosa_metadata::set_metadata_env_vars()`.
         pub const BUILD_TIMESTAMP: &str = env!("FURIOSA_BUILD_TIMESTAMP");
     };
 }
