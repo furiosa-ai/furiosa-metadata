@@ -70,7 +70,7 @@ fn get_expected_patterns() -> Result<Vec<Pattern>, Box<dyn std::error::Error>> {
             })
             .collect(),
         Err(VarError::NotPresent) => Ok(vec![]),
-        Err(e) => return Err(e.into()),
+        Err(e) => Err(e.into()),
     }
 }
 

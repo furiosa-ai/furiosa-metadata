@@ -2,7 +2,7 @@
 name = "furiosa-metadata"
 version = "0.2.0"
 authors = ["FuriosaAI Inc."]
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 chrono = "0.4.41"
