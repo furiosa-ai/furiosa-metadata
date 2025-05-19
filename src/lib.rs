@@ -106,23 +106,23 @@ fn get_expected_patterns() -> Result<Vec<Pattern>, Box<dyn std::error::Error>> {
 ///
 /// The hash will have a `-modified` suffix if the repository is dirty.
 /// A repository is considered clean if all updated paths (if any) match any `expected_patterns`.
-fn git_hash(expected_patterns: &[Pattern], short: bool) -> Result<String, Box<dyn std::error::Error>> {
+fn git_hash(
+    expected_patterns: &[Pattern],
+    short: bool,
+) -> Result<String, Box<dyn std::error::Error>> {
     let args: &[&str] = if short {
         &["rev-parse", "--short=9", "HEAD"] // guarantee at least 9 letters, for backward compatibility
     } else {
         &["rev-parse", "HEAD"]
     };
-    let mut git_hash = run_git(
-        &args,
-        |s| {
-            let s = s.trim_end();
-            if s.len() >= 9 && s.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f')) {
-                Ok(s.to_owned())
-            } else {
-                Err("bad commit id")
-            }
-        },
-    )?;
+    let mut git_hash = run_git(args, |s| {
+        let s = s.trim_end();
+        if s.len() >= 9 && s.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f')) {
+            Ok(s.to_owned())
+        } else {
+            Err("bad commit id")
+        }
+    })?;
 
     let dirty = run_git(
         &[
