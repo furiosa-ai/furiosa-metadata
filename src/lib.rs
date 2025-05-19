@@ -33,6 +33,13 @@ macro_rules! metadata_constants {
         /// `furiosa_metadata::set_metadata_env_vars()`.
         pub const GIT_SHORT_HASH: &str = env!("FURIOSA_GIT_SHORT_HASH");
 
+        /// The full hash of the current Git commit at build time.
+        ///
+        /// This is set via the `FURIOSA_GIT_FULL_HASH` environment variable,
+        /// which is typically defined in a build script (`build.rs`) by calling
+        /// `furiosa_metadata::set_metadata_env_vars()`.
+        pub const GIT_FULL_HASH: &str = env!("FURIOSA_GIT_FULL_HASH");
+
         /// The timestamp when the build was created.
         ///
         /// This is set via the `FURIOSA_BUILD_TIMESTAMP` environment variable,
@@ -59,7 +66,12 @@ macro_rules! metadata_constants {
 pub fn set_metadata_env_vars() -> Result<(), Box<dyn std::error::Error>> {
     if let Err(VarError::NotPresent) = env::var("FURIOSA_GIT_SHORT_HASH") {
         let expected_patterns = get_expected_patterns()?;
-        println!("cargo:rustc-env=FURIOSA_GIT_SHORT_HASH={}", git_short_hash(&expected_patterns)?);
+        println!("cargo:rustc-env=FURIOSA_GIT_SHORT_HASH={}", git_hash(&expected_patterns, true)?);
+    }
+
+    if let Err(VarError::NotPresent) = env::var("FURIOSA_GIT_FULL_HASH") {
+        let expected_patterns = get_expected_patterns()?;
+        println!("cargo:rustc-env=FURIOSA_GIT_FULL_HASH={}", git_hash(&expected_patterns, false)?);
     }
 
     println!("cargo:rustc-env=FURIOSA_BUILD_TIMESTAMP={}", build_timestamp());
@@ -94,13 +106,14 @@ fn get_expected_patterns() -> Result<Vec<Pattern>, Box<dyn std::error::Error>> {
 ///
 /// The hash will have a `-modified` suffix if the repository is dirty.
 /// A repository is considered clean if all updated paths (if any) match any `expected_patterns`.
-fn git_short_hash(expected_patterns: &[Pattern]) -> Result<String, Box<dyn std::error::Error>> {
-    let mut git_short_hash = run_git(
-        &[
-            "rev-parse",
-            "--short=9", // guarantee at least 9 letters, for backward compatibility
-            "HEAD",
-        ],
+fn git_hash(expected_patterns: &[Pattern], short: bool) -> Result<String, Box<dyn std::error::Error>> {
+    let args: &[&str] = if short {
+        &["rev-parse", "--short=9", "HEAD"] // guarantee at least 9 letters, for backward compatibility
+    } else {
+        &["rev-parse", "HEAD"]
+    };
+    let mut git_hash = run_git(
+        &args,
         |s| {
             let s = s.trim_end();
             if s.len() >= 9 && s.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f')) {
@@ -159,10 +172,10 @@ fn git_short_hash(expected_patterns: &[Pattern]) -> Result<String, Box<dyn std::
     )?;
 
     if dirty {
-        git_short_hash.push_str("-modified");
+        git_hash.push_str("-modified");
     }
 
-    Ok(git_short_hash)
+    Ok(git_hash)
 }
 
 fn extract_stdout<'a>(
@@ -223,6 +236,7 @@ fn build_timestamp() -> String {
 
 #[test]
 fn tests() -> Result<(), Box<dyn std::error::Error>> {
-    assert!(!git_short_hash(&[])?.is_empty());
+    assert!(!git_hash(&[], true)?.is_empty());
+    assert!(!git_hash(&[], false)?.is_empty());
     Ok(())
 }
