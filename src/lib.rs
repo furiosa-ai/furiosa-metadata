@@ -236,6 +236,7 @@ fn build_timestamp() -> String {
 
 #[test]
 fn tests() -> Result<(), Box<dyn std::error::Error>> {
-    assert!(!git_short_hash(&[])?.is_empty());
+    assert!(!git_hash(&[], true)?.is_empty());
+    assert!(!git_hash(&[], false)?.is_empty());
     Ok(())
 }
