@@ -102,7 +102,10 @@ fn get_expected_patterns() -> Result<Vec<Pattern>, Box<dyn std::error::Error>> {
     }
 }
 
-/// Returns the Git short hash for the current branch of the npu-tools repository.
+/// Returns the Git hash for the current branch of the repository.
+///
+/// When `short` is `true`, the function returns a truncated hash of 10
+/// characters; otherwise it returns the complete hash value.
 ///
 /// The hash will have a `-modified` suffix if the repository is dirty.
 /// A repository is considered clean if all updated paths (if any) match any `expected_patterns`.
@@ -110,14 +113,11 @@ fn git_hash(
     expected_patterns: &[Pattern],
     short: bool,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let args: &[&str] = if short {
-        &["rev-parse", "--short=9", "HEAD"] // guarantee at least 9 letters, for backward compatibility
-    } else {
-        &["rev-parse", "HEAD"]
-    };
+    let args: &[&str] =
+        if short { &["rev-parse", "--short=10", "HEAD"] } else { &["rev-parse", "HEAD"] };
     let mut git_hash = run_git(args, |s| {
         let s = s.trim_end();
-        if s.len() >= 9 && s.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f')) {
+        if s.len() >= 10 && s.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f')) {
             Ok(s.to_owned())
         } else {
             Err("bad commit id")
@@ -236,7 +236,14 @@ fn build_timestamp() -> String {
 
 #[test]
 fn tests() -> Result<(), Box<dyn std::error::Error>> {
-    assert!(!git_hash(&[], true)?.is_empty());
-    assert!(!git_hash(&[], false)?.is_empty());
+    // For test, ignore -modified suffix
+    let short_hash = git_hash(&[], true)?;
+    let short_hash_clean = short_hash.strip_suffix("-modified").unwrap_or(&short_hash);
+    assert_eq!(short_hash_clean.len(), 10);
+
+    let full_hash = git_hash(&[], false)?;
+    let full_hash_clean = full_hash.strip_suffix("-modified").unwrap_or(&full_hash);
+    assert_eq!(full_hash_clean.len(), 40);
+
     Ok(())
 }
