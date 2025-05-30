@@ -103,8 +103,9 @@ fn get_expected_patterns() -> Result<Vec<Pattern>, Box<dyn std::error::Error>> {
 }
 
 /// Returns the Git hash for the current branch of the repository.
-/// When `short` is `true`, returns a truncated hash of 10 characters;
-/// otherwise returns the complete hash value.
+///
+/// When `short` is `true`, the function returns a truncated hash of 10
+/// characters; otherwise it returns the complete hash value.
 ///
 /// The hash will have a `-modified` suffix if the repository is dirty.
 /// A repository is considered clean if all updated paths (if any) match any `expected_patterns`.
